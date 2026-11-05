@@ -25,6 +25,7 @@ export function ManualDecode({ onPin, defaultOpen }: ManualDecodeProps) {
 
   const handleStartChange = (event: ChangeEvent<HTMLInputElement>) => {
     setStart(sanitizeStart(event.target.value))
+    setNote(null)
   }
   const handleCiphertextChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setCiphertext(event.target.value)

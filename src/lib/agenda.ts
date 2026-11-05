@@ -21,6 +21,7 @@ export function parseAgenda(plaintext: string): Talk | null {
   const m = /^\s*(\d{1,2}):(\d{2})\s+(.+)$/.exec(plaintext)
   if (!m) return null
   const [, hh, mm, rest] = m as unknown as [string, string, string, string]
+  if (Number(hh) > 23 || Number(mm) > 59) return null
   const colon = rest.indexOf(':')
   if (colon <= 0) return null
   const room = rest.slice(0, colon).trim()
