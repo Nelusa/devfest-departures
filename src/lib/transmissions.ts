@@ -14,10 +14,12 @@ export function isTransmission(value: unknown): value is Transmission {
   if (typeof value !== 'object' || value === null) return false
   const t = value as Record<string, unknown>
   return (
-    typeof t.number === 'number' &&
+    Number.isSafeInteger(t.number) &&
     typeof t.start === 'string' &&
+    isValidStart(t.start) &&
     typeof t.ciphertext === 'string' &&
-    typeof t.sentAt === 'string'
+    typeof t.sentAt === 'string' &&
+    Number.isFinite(Date.parse(t.sentAt))
   )
 }
 
@@ -37,9 +39,28 @@ export function decodeTransmission(t: Transmission): AgendaEntry | null {
 }
 
 export async function fetchTransmissions(signal?: AbortSignal): Promise<Transmission[]> {
-  const res = await fetch(TRANSMISSIONS_URL, { cache: 'no-store', signal })
-  if (!res.ok) throw new Error(`Transmissions request failed: HTTP ${res.status}`)
-  const data: unknown = await res.json()
-  const list = (data as { transmissions?: unknown }).transmissions
-  return Array.isArray(list) ? list.filter(isTransmission) : []
+  const controller = new AbortController()
+  const abort = () => {
+    controller.abort()
+  }
+  if (signal?.aborted) abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  const timeout = setTimeout(abort, 10_000)
+  try {
+    const res = await fetch(TRANSMISSIONS_URL, { cache: 'no-store', signal: controller.signal })
+    if (!res.ok) throw new Error(`Transmissions request failed: HTTP ${res.status}`)
+    const data: unknown = await res.json()
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      !('transmissions' in data) ||
+      !Array.isArray(data.transmissions)
+    ) {
+      throw new Error('Invalid transmissions response')
+    }
+    return data.transmissions.filter(isTransmission)
+  } finally {
+    clearTimeout(timeout)
+    signal?.removeEventListener('abort', abort)
+  }
 }

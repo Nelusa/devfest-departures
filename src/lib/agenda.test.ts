@@ -29,6 +29,12 @@ describe('parseAgenda', () => {
     })
   })
 
+  it('rejects times outside the daily schedule', () => {
+    expect(parseAgenda('24:00 HALL: TALK')).toBeNull()
+    expect(parseAgenda('12:60 HALL: TALK')).toBeNull()
+    expect(parseAgenda('9:05 HALL: TALK')?.time).toBe('09:05')
+  })
+
   it('rejects garbage', () => {
     expect(parseAgenda('XQZT PLM')).toBeNull()
   })

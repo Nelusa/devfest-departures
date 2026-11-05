@@ -18,6 +18,7 @@ export function useTransmissions() {
   const [lastSentAt, setLastSentAt] = useState<string | null>(null)
   const [fresh, setFresh] = useState<ReadonlyMap<string, number>>(new Map())
   const storeRef = useRef(store)
+  const request = useRef<AbortController | null>(null)
 
   const ingest = useCallback((incoming: AgendaEntry[], numbers: number[]) => {
     const prev = storeRef.current
@@ -44,17 +45,28 @@ export function useTransmissions() {
   }, [])
 
   const poll = useCallback(async () => {
+    if (request.current) return
+    const controller = new AbortController()
+    request.current = controller
     try {
-      const transmissions = await fetchTransmissions()
+      const transmissions = await fetchTransmissions(controller.signal)
+      if (controller.signal.aborted) return
       const decoded = transmissions.map(decodeTransmission).filter((e) => e !== null)
       ingest(
         decoded,
         transmissions.map((t) => t.number),
       )
-      setLastSentAt(transmissions[0]?.sentAt ?? null)
+      setLastSentAt(
+        transmissions.reduce<string | null>(
+          (latest, t) => (!latest || Date.parse(t.sentAt) > Date.parse(latest) ? t.sentAt : latest),
+          null,
+        ),
+      )
       setStatus('live')
     } catch {
-      setStatus('lost')
+      if (!controller.signal.aborted) setStatus('lost')
+    } finally {
+      if (request.current === controller) request.current = null
     }
   }, [ingest])
 
@@ -68,6 +80,8 @@ export function useTransmissions() {
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('online', onOnline)
     return () => {
+      request.current?.abort()
+      request.current = null
       clearInterval(interval)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('online', onOnline)
